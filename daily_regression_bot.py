@@ -163,7 +163,7 @@ def build_slack_message(summary, failed_tests, launch_id):
     launch_url = build_launch_url(launch_id)
 
     message = (
-        f"🧪 *Daily Regression — {date_str}*\n\n"
+        f"🧪 *PhotonBot — {date_str}*\n\n"
         f"*Overall:* {emoji} {pass_rate}% passed\n\n"
         f"• Total: {total}\n"
         f"• ✅ Passed: {passed}\n"
