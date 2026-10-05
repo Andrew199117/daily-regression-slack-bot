@@ -122,16 +122,15 @@ def build_test_url(test_id):
     if not test_id:
         return None
 
-    return f"{BASE_URL}/projects/{PROJECT_KEY}/tests/{test_id}"
+    # Исправлено: приведен к стандартному виду для просмотра деталей теста
+    return f"{BASE_URL}/projects/{PROJECT_KEY}/test-runs/{test_id}"
 
 def build_launch_url(launch_id):
     """
     Ссылка на конкретный launch.
     """
-    return (
-        f"{BASE_URL}/projects/{PROJECT_KEY}/"
-        f"executions/automation-launchers/60/124/{launch_id}"
-    )
+    # Исправлено: убраны лишние папки /automation-launchers/60/124/
+    return f"{BASE_URL}/projects/{PROJECT_KEY}/launches/{launch_id}"
 
 def build_slack_message(summary, failed_tests, launch_id):
     passed = int(summary.get("passed", 0) or 0)
