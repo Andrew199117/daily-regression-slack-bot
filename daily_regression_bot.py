@@ -19,8 +19,9 @@ RUNS_BEFORE = 5
 RUNS_AFTER = 5
 TIMEOUT = 30
 
-TEST_EXECUTOR_TOKEN = os.getenv("y5kUNsaePTG9BYNpjyBorrbj4S7KvPLHwPuiOyI28wy4Ke8Aqw")
-SLACK_WEBHOOK_URL = os.getenv("t08ecjg042u/b0c6cdqqmgx/ggwacxapmyuk9jwilm7lksl4")
+TEST_EXECUTOR_TOKEN = os.getenv("TEST_EXECUTOR_TOKEN")
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
+
 
 
 if not TEST_EXECUTOR_TOKEN:
