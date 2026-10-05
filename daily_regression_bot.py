@@ -5,7 +5,7 @@ from datetime import datetime
 import requests
 
 
-BASE_URL = "https://bibip.testexecutor.com"
+BASE_URL = "https://testexecutor.com"
 PROJECT_ID = 1
 PROJECT_KEY = "ZTP"
 
@@ -23,7 +23,6 @@ TEST_EXECUTOR_TOKEN = os.getenv("TEST_EXECUTOR_TOKEN")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
 
-
 if not TEST_EXECUTOR_TOKEN:
     print("ERROR: TEST_EXECUTOR_TOKEN is not set")
     sys.exit(1)
@@ -33,8 +32,10 @@ if not SLACK_WEBHOOK_URL:
     sys.exit(1)
 
 
+# УКАЖИТЕ ВАШ EMAIL ОТ ТЕСТ-ЭКЗЕКЬЮТОРА ВМЕСТО ВАШ_EMAIL_ИЛИ_ЛОГИН
+USER_EMAIL = "ВАШ_EMAIL_ИЛИ_ЛОГИН"
+
 HEADERS = {
-    "Authorization": f"Bearer {TEST_EXECUTOR_TOKEN}",
     "Accept": "application/json",
 }
 
@@ -45,6 +46,7 @@ def get_json(url, params=None):
         headers=HEADERS,
         params=params,
         timeout=TIMEOUT,
+        auth=(USER_EMAIL, TEST_EXECUTOR_TOKEN),  # Исправлено на Basic Authentication
     )
 
     response.raise_for_status()
