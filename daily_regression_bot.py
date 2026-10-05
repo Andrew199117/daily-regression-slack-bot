@@ -4,11 +4,12 @@ from datetime import datetime
 
 import requests
 
-
 BASE_URL = "https://bibip.testexecutor.com"
 PROJECT_ID = 1
 PROJECT_KEY = "ZTP"
 
+# Используем 16126 как точку отсчёта,
+# чтобы получить последние запуски.
 PASS_RATES_URL = (
     f"{BASE_URL}/api/reporting/v1/launches/16126/pass-rates"
 )
@@ -20,7 +21,6 @@ TIMEOUT = 30
 TEST_EXECUTOR_TOKEN = os.getenv("TEST_EXECUTOR_TOKEN")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
-
 if not TEST_EXECUTOR_TOKEN:
     print("ERROR: TEST_EXECUTOR_TOKEN is not set")
     sys.exit(1)
@@ -29,13 +29,11 @@ if not SLACK_WEBHOOK_URL:
     print("ERROR: SLACK_WEBHOOK_URL is not set")
     sys.exit(1)
 
-
-USER_EMAIL = "automation"
-
+# Возвращаем стандартные заголовки Bearer Auth, так как Basic Auth не поддерживается API
 HEADERS = {
+    "Authorization": f"Bearer {TEST_EXECUTOR_TOKEN}",
     "Accept": "application/json",
 }
-
 
 def get_json(url, params=None):
     response = requests.get(
@@ -43,12 +41,10 @@ def get_json(url, params=None):
         headers=HEADERS,
         params=params,
         timeout=TIMEOUT,
-        auth=(USER_EMAIL, TEST_EXECUTOR_TOKEN),  # Исправлено на Basic Authentication
     )
 
     response.raise_for_status()
     return response.json()
-
 
 def get_latest_launch_id():
     params = {
@@ -78,7 +74,6 @@ def get_latest_launch_id():
 
     return latest_launch_id
 
-
 def get_launch_summary(launch_id):
     url = f"{BASE_URL}/api/reporting/v1/launches/{launch_id}"
 
@@ -89,7 +84,6 @@ def get_launch_summary(launch_id):
     data = get_json(url, params)
 
     return data["data"]
-
 
 def get_failed_tests(launch_id):
     url = f"{BASE_URL}/api/reporting/v1/launches/{launch_id}/tests"
@@ -117,28 +111,23 @@ def get_failed_tests(launch_id):
 
     return failed_tests
 
-
 def build_test_url(test_id):
     """
     Формируем ссылку на тест.
     """
-
     if not test_id:
         return None
 
     return f"{BASE_URL}/projects/{PROJECT_KEY}/tests/{test_id}"
 
-
 def build_launch_url(launch_id):
     """
     Ссылка на конкретный launch.
     """
-
     return (
         f"{BASE_URL}/projects/{PROJECT_KEY}/"
         f"executions/automation-launchers/60/124/{launch_id}"
     )
-
 
 def build_slack_message(summary, failed_tests, launch_id):
     passed = int(summary.get("passed", 0) or 0)
@@ -196,7 +185,6 @@ def build_slack_message(summary, failed_tests, launch_id):
 
     return message
 
-
 def send_to_slack(message):
     payload = {
         "text": message
@@ -211,7 +199,6 @@ def send_to_slack(message):
     response.raise_for_status()
 
     print("Slack message sent successfully")
-
 
 def main():
     print("Starting Daily Regression bot...")
@@ -243,7 +230,6 @@ def main():
     print("----------------------------------------")
 
     send_to_slack(message)
-
 
 if __name__ == "__main__":
     try:
