@@ -1,10 +1,11 @@
+import base64
 import os
 import sys
 from datetime import datetime
 
 import requests
 
-BASE_URL = "https://bibip.testexecutor.com"
+BASE_URL = "https://testexecutor.com"
 PROJECT_ID = 1
 PROJECT_KEY = "ZTP"
 
@@ -29,9 +30,12 @@ if not SLACK_WEBHOOK_URL:
     print("ERROR: SLACK_WEBHOOK_URL is not set")
     sys.exit(1)
 
-# Возвращаем стандартные заголовки Bearer Auth, так как Basic Auth не поддерживается API
+# Кодируем токен в формат Basic Auth (токен используется вместо пароля, логин пустой)
+raw_auth_string = f":{TEST_EXECUTOR_TOKEN}"
+encoded_auth_string = base64.b64encode(raw_auth_string.encode("utf-8")).decode("utf-8")
+
 HEADERS = {
-    "Authorization": f"Bearer {TEST_EXECUTOR_TOKEN}",
+    "Authorization": f"Basic {encoded_auth_string}",
     "Accept": "application/json",
 }
 
