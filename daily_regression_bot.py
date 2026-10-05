@@ -35,7 +35,7 @@ raw_auth_string = f":{TEST_EXECUTOR_TOKEN}"
 encoded_auth_string = base64.b64encode(raw_auth_string.encode("utf-8")).decode("utf-8")
 
 HEADERS = {
-    "Authorization": f"Basic {encoded_auth_string}",
+    "Authorization": f"Bearer {TEST_EXECUTOR_TOKEN}",
     "Accept": "application/json",
 }
 
