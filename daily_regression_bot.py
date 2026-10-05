@@ -5,7 +5,7 @@ from datetime import datetime
 import requests
 
 
-BASE_URL = "https://testexecutor.com"
+BASE_URL = "https://bibip.testexecutor.com"
 PROJECT_ID = 1
 PROJECT_KEY = "ZTP"
 
