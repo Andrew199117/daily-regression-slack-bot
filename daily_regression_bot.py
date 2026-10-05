@@ -7,6 +7,7 @@ import requests
 
 BASE_URL = "https://bibip.testexecutor.com"
 PROJECT_ID = 1
+PROJECT_KEY = "ZTP"
 
 # Используем 16126 как точку отсчёта,
 # чтобы получить последние запуски.
@@ -106,14 +107,40 @@ def get_failed_tests(launch_id):
     for test in items:
         if test.get("status") == "FAILED":
             name = test.get("name")
+            test_id = test.get("id")
 
             if name:
-                failed_tests.append(name)
+                failed_tests.append({
+                    "name": name,
+                    "id": test_id,
+                })
 
     return failed_tests
 
 
-def build_slack_message(summary, failed_tests):
+def build_test_url(test_id):
+    """
+    Формируем ссылку на тест.
+    """
+
+    if not test_id:
+        return None
+
+    return f"{BASE_URL}/projects/{PROJECT_KEY}/tests/{test_id}"
+
+
+def build_launch_url(launch_id):
+    """
+    Ссылка на конкретный launch.
+    """
+
+    return (
+        f"{BASE_URL}/projects/{PROJECT_KEY}/"
+        f"executions/automation-launchers/60/124/{launch_id}"
+    )
+
+
+def build_slack_message(summary, failed_tests, launch_id):
     passed = int(summary.get("passed", 0) or 0)
     failed = int(summary.get("failed", 0) or 0)
     skipped = int(summary.get("skipped", 0) or 0)
@@ -140,6 +167,8 @@ def build_slack_message(summary, failed_tests):
     else:
         date_str = datetime.now().strftime("%b %-d")
 
+    launch_url = build_launch_url(launch_id)
+
     message = (
         f"🧪 *Daily Regression — {date_str}*\n\n"
         f"*Overall:* {emoji} {pass_rate}% passed\n\n"
@@ -152,8 +181,18 @@ def build_slack_message(summary, failed_tests):
     if failed_tests:
         message += "\n*Failed tests:*\n"
 
-        for test_name in failed_tests:
-            message += f"• {test_name}\n"
+        for test in failed_tests:
+            test_name = test["name"]
+            test_id = test.get("id")
+
+            test_url = build_test_url(test_id)
+
+            if test_url:
+                message += f"• <{test_url}|{test_name}>\n"
+            else:
+                message += f"• {test_name}\n"
+
+    message += f"\n🔗 <{launch_url}|Open launch>"
 
     return message
 
@@ -195,6 +234,7 @@ def main():
     message = build_slack_message(
         summary,
         failed_tests,
+        launch_id,
     )
 
     print("\nMessage:")
