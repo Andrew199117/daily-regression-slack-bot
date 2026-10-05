@@ -9,8 +9,6 @@ BASE_URL = "https://testexecutor.com"
 PROJECT_ID = 1
 PROJECT_KEY = "ZTP"
 
-# Используем 16126 как точку отсчёта,
-# чтобы получить последние запуски.
 PASS_RATES_URL = (
     f"{BASE_URL}/api/reporting/v1/launches/16126/pass-rates"
 )
@@ -32,8 +30,7 @@ if not SLACK_WEBHOOK_URL:
     sys.exit(1)
 
 
-# УКАЖИТЕ ВАШ EMAIL ОТ ТЕСТ-ЭКЗЕКЬЮТОРА ВМЕСТО ВАШ_EMAIL_ИЛИ_ЛОГИН
-USER_EMAIL = "ВАШ_EMAIL_ИЛИ_ЛОГИН"
+USER_EMAIL = "automation"
 
 HEADERS = {
     "Accept": "application/json",
