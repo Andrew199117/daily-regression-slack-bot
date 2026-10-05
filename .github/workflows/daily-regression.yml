@@ -1,7 +1,10 @@
 name: Daily Regression Slack
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Сохраняет кнопку для ручного запуска в любое время
+  schedule:
+    # Автоматический запуск с понедельника по пятницу в 08:45 по МСК (05:45 UTC)
+    - cron: '45 5 * * 1-5'
 
 jobs:
   regression-report:
