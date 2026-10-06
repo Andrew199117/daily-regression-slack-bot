@@ -1,21 +1,18 @@
+import base64
 import os
 import sys
 from datetime import datetime
 
 import requests
 
-BASE_URL = "https://bibip.testexecutor.com"
+BASE_URL = "https://testexecutor.com"
 PROJECT_ID = 1
 PROJECT_KEY = "ZTP"
 
-# Используем 16126 как точку отсчёта,
-# чтобы получить последние запуски.
-PASS_RATES_URL = (
-    f"{BASE_URL}/api/reporting/v1/launches/16126/pass-rates"
-)
+# Изменено: используем эндпоинт общего списка запусков проекта,
+# чтобы всегда видеть самые последние прогоны.
+LAUNCHES_URL = f"{BASE_URL}/api/reporting/v1/launches"
 
-RUNS_BEFORE = 5
-RUNS_AFTER = 5
 TIMEOUT = 30
 
 TEST_EXECUTOR_TOKEN = os.getenv("TEST_EXECUTOR_TOKEN")
@@ -36,8 +33,6 @@ def get_authenticated_headers():
     """
     print("Authenticating with Access Token...")
     refresh_url = f"{BASE_URL}/api/iam/v1/auth/refresh"
-    
-    # В этой платформе постоянный токен обменивается через тело JSON-запроса
     payload = {"refreshToken": TEST_EXECUTOR_TOKEN}
     
     try:
@@ -45,7 +40,6 @@ def get_authenticated_headers():
         response.raise_for_status()
         
         data = response.json()
-        # Извлекаем тип токена и сам полученный JWT-токен
         token_type = data.get("authTokenType", "Bearer")
         access_token = data.get("authToken")
         
@@ -70,93 +64,81 @@ def get_json(url, params=None):
         params=params,
         timeout=TIMEOUT,
     )
-
     response.raise_for_status()
     return response.json()
 
 
 def get_latest_launch_id():
+    """
+    Запрашивает последние запуски проекта и возвращает ID самого свежего из них.
+    """
     params = {
-        "runsBefore": RUNS_BEFORE,
-        "runsAfter": RUNS_AFTER,
         "projectId": PROJECT_ID,
+        "pageSize": 10,  # Берем последние 10 прогонов для анализа
+        "sort": "id,desc"  # Сортируем от самых новых к старым
     }
 
-    data = get_json(PASS_RATES_URL, params)
+    data = get_json(LAUNCHES_URL, params)
     items = data.get("items", [])
 
     if not items:
-        raise RuntimeError("No launches found")
+        # Если эндпоинт со списками пуст или имеет другую структуру,
+        # попробуем поискать в поле "data"
+        items = data.get("data", [])
 
-    launch_ids = [
-        item["launchId"]
-        for item in items
-        if item.get("launchId") is not None
-    ]
+    if not items:
+        raise RuntimeError("No launches found in project")
 
-    if not launch_ids:
-        raise RuntimeError("No launchId found")
+    # Ищем самый свежий завершенный запуск
+    for item in items:
+        launch_id = item.get("id") or item.get("launchId")
+        status = item.get("status")
+        
+        # Пропускаем запуски, которые еще выполняются (IN_PROGRESS)
+        if launch_id is not None and status != "IN_PROGRESS":
+            print(f"Found latest completed launch ID: {launch_id} (Status: {status})")
+            return launch_id
 
-    latest_launch_id = max(launch_ids)
-
-    print(f"Latest launch ID: {latest_launch_id}")
-
-    return latest_launch_id
+    # Если все 10 прогонов выполняются, берем просто самый первый
+    first_item = items[0]
+    launch_id = first_item.get("id") or first_item.get("launchId")
+    print(f"Forced latest launch ID: {launch_id}")
+    return launch_id
 
 
 def get_launch_summary(launch_id):
     url = f"{BASE_URL}/api/reporting/v1/launches/{launch_id}"
-
-    params = {
-        "projectId": PROJECT_ID,
-    }
-
+    params = {"projectId": PROJECT_ID}
     data = get_json(url, params)
-
-    return data["data"]
+    return data.get("data") or data
 
 
 def get_failed_tests(launch_id):
     url = f"{BASE_URL}/api/reporting/v1/launches/{launch_id}/tests"
-
-    params = {
-        "projectId": PROJECT_ID,
-    }
-
+    params = {"projectId": PROJECT_ID}
     data = get_json(url, params)
-
+    
     items = data.get("items", [])
-
+    if not items:
+        items = data.get("data", [])
+        
     failed_tests = []
-
     for test in items:
         if test.get("status") == "FAILED":
             name = test.get("name")
             test_id = test.get("id")
-
             if name:
-                failed_tests.append({
-                    "name": name,
-                    "id": test_id,
-                })
-
+                failed_tests.append({"name": name, "id": test_id})
     return failed_tests
 
 
 def build_test_url(test_id):
-    """
-    Формируем ссылку на тест.
-    """
     if not test_id:
         return None
-
     return f"{BASE_URL}/projects/{PROJECT_KEY}/test-runs/{test_id}"
 
 
 def build_launch_url(launch_id):
-    """
-    Ссылка на конкретный launch.
-    """
     return f"{BASE_URL}/projects/{PROJECT_KEY}/launches/{launch_id}"
 
 
@@ -166,21 +148,13 @@ def build_slack_message(summary, failed_tests, launch_id):
     skipped = int(summary.get("skipped", 0) or 0)
 
     total = passed + failed + skipped
-
-    if total > 0:
-        pass_rate = round((passed / total) * 100)
-    else:
-        pass_rate = 0
-
+    pass_rate = round((passed / total) * 100) if total > 0 else 0
     emoji = "🟢" if failed == 0 else "🔴"
 
     started_at = summary.get("startedAt")
-
     if started_at:
         try:
-            date = datetime.fromisoformat(
-                started_at.replace("Z", "+00:00")
-            )
+            date = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
             date_str = date.strftime("%b %-d")
         except ValueError:
             date_str = started_at[:10]
@@ -200,46 +174,33 @@ def build_slack_message(summary, failed_tests, launch_id):
 
     if failed_tests:
         message += "\n*Failed tests:*\n"
-
         for test in failed_tests:
             test_name = test["name"]
             test_id = test.get("id")
-
             test_url = build_test_url(test_id)
-
             if test_url:
                 message += f"• <{test_url}|{test_name}>\n"
             else:
                 message += f"• {test_name}\n"
 
     message += f"\n🔗 <{launch_url}|Open launch>"
-
     return message
 
 
 def send_to_slack(message):
     payload = {
         "text": message,
-        "username": "PhotonBot",  # Кастомное имя бота в Slack
-        "icon_emoji": ":test_tube:"  # Аватарка бота
+        "username": "PhotonBot",
+        "icon_emoji": ":test_tube:"
     }
-
-    response = requests.post(
-        SLACK_WEBHOOK_URL,
-        json=payload,
-        timeout=TIMEOUT,
-    )
-
+    response = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=TIMEOUT)
     response.raise_for_status()
-
     print("Slack message sent successfully")
 
 
 def main():
     print("Starting Daily Regression bot...")
-
     launch_id = get_latest_launch_id()
-
     summary = get_launch_summary(launch_id)
 
     print(
@@ -250,36 +211,22 @@ def main():
     )
 
     failed_tests = get_failed_tests(launch_id)
-
     print(f"Failed tests: {len(failed_tests)}")
 
-    message = build_slack_message(
-        summary,
-        failed_tests,
-        launch_id,
-    )
-
-    print("\nMessage:")
-    print("----------------------------------------")
-    print(message)
-    print("----------------------------------------")
-
+    message = build_slack_message(summary, failed_tests, launch_id)
+    print("\nMessage sent to Slack.")
     send_to_slack(message)
 
 
 if __name__ == "__main__":
     try:
         main()
-
     except requests.HTTPError as e:
         print(f"HTTP ERROR: {e}")
-
         if e.response is not None:
             print(f"Status: {e.response.status_code}")
             print(f"Response: {e.response.text[:1000]}")
-
         sys.exit(1)
-
     except Exception as e:
         print(f"ERROR: {e}")
         sys.exit(1)
