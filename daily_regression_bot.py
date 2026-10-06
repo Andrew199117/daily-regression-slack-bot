@@ -1,4 +1,3 @@
-import base64
 import os
 import sys
 from datetime import datetime
@@ -30,14 +29,39 @@ if not SLACK_WEBHOOK_URL:
     print("ERROR: SLACK_WEBHOOK_URL is not set")
     sys.exit(1)
 
-# Кодируем токен в формат Basic Auth (токен используется вместо пароля, логин пустой)
-raw_auth_string = f":{TEST_EXECUTOR_TOKEN}"
-encoded_auth_string = base64.b64encode(raw_auth_string.encode("utf-8")).decode("utf-8")
 
-HEADERS = {
-    "Authorization": f"Bearer {TEST_EXECUTOR_TOKEN}",
-    "Accept": "application/json",
-}
+def get_authenticated_headers():
+    """
+    Обменивает постоянный Access Token на временный сессионный JWT-токен.
+    """
+    print("Authenticating with Access Token...")
+    refresh_url = f"{BASE_URL}/api/iam/v1/auth/refresh"
+    
+    # В этой платформе постоянный токен обменивается через тело JSON-запроса
+    payload = {"refreshToken": TEST_EXECUTOR_TOKEN}
+    
+    try:
+        response = requests.post(refresh_url, json=payload, timeout=TIMEOUT)
+        response.raise_for_status()
+        
+        data = response.json()
+        # Извлекаем тип токена и сам полученный JWT-токен
+        token_type = data.get("authTokenType", "Bearer")
+        access_token = data.get("authToken")
+        
+        print("Authentication successful!")
+        return {
+            "Authorization": f"{token_type} {access_token}",
+            "Accept": "application/json",
+        }
+    except Exception as e:
+        print(f"AUTHENTICATION ERROR: Failed to exchange access token. Details: {e}")
+        sys.exit(1)
+
+
+# Получаем заголовки с валидной рабочей сессией
+HEADERS = get_authenticated_headers()
+
 
 def get_json(url, params=None):
     response = requests.get(
@@ -49,6 +73,7 @@ def get_json(url, params=None):
 
     response.raise_for_status()
     return response.json()
+
 
 def get_latest_launch_id():
     params = {
@@ -78,6 +103,7 @@ def get_latest_launch_id():
 
     return latest_launch_id
 
+
 def get_launch_summary(launch_id):
     url = f"{BASE_URL}/api/reporting/v1/launches/{launch_id}"
 
@@ -88,6 +114,7 @@ def get_launch_summary(launch_id):
     data = get_json(url, params)
 
     return data["data"]
+
 
 def get_failed_tests(launch_id):
     url = f"{BASE_URL}/api/reporting/v1/launches/{launch_id}/tests"
@@ -115,6 +142,7 @@ def get_failed_tests(launch_id):
 
     return failed_tests
 
+
 def build_test_url(test_id):
     """
     Формируем ссылку на тест.
@@ -122,15 +150,15 @@ def build_test_url(test_id):
     if not test_id:
         return None
 
-    # Исправлено: приведен к стандартному виду для просмотра деталей теста
     return f"{BASE_URL}/projects/{PROJECT_KEY}/test-runs/{test_id}"
+
 
 def build_launch_url(launch_id):
     """
     Ссылка на конкретный launch.
     """
-    # Исправлено: убраны лишние папки /automation-launchers/60/124/
     return f"{BASE_URL}/projects/{PROJECT_KEY}/launches/{launch_id}"
+
 
 def build_slack_message(summary, failed_tests, launch_id):
     passed = int(summary.get("passed", 0) or 0)
@@ -162,7 +190,7 @@ def build_slack_message(summary, failed_tests, launch_id):
     launch_url = build_launch_url(launch_id)
 
     message = (
-        f"🧪 *PhotonBot — {date_str}*\n\n"
+        f"🧪 *Daily Regression — {date_str}*\n\n"
         f"*Overall:* {emoji} {pass_rate}% passed\n\n"
         f"• Total: {total}\n"
         f"• ✅ Passed: {passed}\n"
@@ -188,9 +216,12 @@ def build_slack_message(summary, failed_tests, launch_id):
 
     return message
 
+
 def send_to_slack(message):
     payload = {
-        "text": message
+        "text": message,
+        "username": "PhotonBot",  # Кастомное имя бота в Slack
+        "icon_emoji": ":test_tube:"  # Аватарка бота
     }
 
     response = requests.post(
@@ -202,6 +233,7 @@ def send_to_slack(message):
     response.raise_for_status()
 
     print("Slack message sent successfully")
+
 
 def main():
     print("Starting Daily Regression bot...")
@@ -233,6 +265,7 @@ def main():
     print("----------------------------------------")
 
     send_to_slack(message)
+
 
 if __name__ == "__main__":
     try:
